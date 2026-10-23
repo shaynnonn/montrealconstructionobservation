@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Montréal Construction Observatory</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <!-- Search bar CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.css">
+    <!-- Your CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <!-- LEFT: MAP -->
+        <div id="map"></div>
+
+        <!-- Toggle tab -->
+        <button id="sidebar-toggle" aria-label="Toggle sidebar">›</button>
+
+        <!-- RIGHT: SIDEBAR -->
+        <aside class="sidebar">
+            <h1>Montréal Construction Observatory</h1>
+
+            <h2>About this map</h2>
+            <p>
+                This interactive map helps visualize the concentration of construction
+                worksites across the Island of Montréal. It's designed for anyone who
+                wants to explore where construction activity is happening. You are able to compare
+                between boroughs and see how construction affect each one differently 
+            </p>
+
+            <h2>How to use this map</h2>
+            <ol>
+                <li>
+                    <strong>Borough level:</strong> Click on a borough to see its
+                    construction concentration.
+                </li>
+                <li>
+                    <strong>Hexagon level:</strong> Zoom in to see construction
+                    density as hexagons.
+                </li>
+            </ol>
+
+            <h2>Data sources</h2>
+            <p>All from the Ville de Montréal open data portal, under the CC BY 4.0 licence:</p>
+            <p>Ville de Montréal Open Data – <a href="https://donnees.montreal.ca/dataset/info-travaux/resource/cc41b532-f12d-40fb-9f55-eb58c9a2b12b" target="_blank">Entraves et travaux en cours</a> </p> 
+            <p>Government of Canada Open Data – <a href="https://open.canada.ca/data/en/dataset/0f2e7b9c-1d3e-4f5c-8b6e-1f3e5f1c5b6e" target="_blank"> Montreal Boroughs</a></p>
+            <h2>Limitations</h2>
+            <p>
+                This version shows where construction is concentrated, but it can't
+                measure how severely it affects residents or businesses.
+            </p>
+        </aside>
+
+    </div>
+
+      <!-- Scripts, in order -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    <script src="script.js"></script>
+
+</body>
+
+</html>
