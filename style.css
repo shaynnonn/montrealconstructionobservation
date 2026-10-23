@@ -1,0 +1,92 @@
+/* GENERAL PAGE */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family: Arial, sans-serif;
+}
+
+/* MAIN LAYOUT: MAP LEFT, SIDEBAR RIGHT */
+.app-container {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 100vh;
+    position: relative;   /* NEW: anchors the toggle button */
+    overflow: hidden;     /* NEW: hides the sidebar when it slides out */
+}
+
+/* LEFT SIDE: MAP */
+#map {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    position: relative;
+    background-color: lightgray;
+}
+
+/* RIGHT SIDE: SIDEBAR */
+.sidebar {
+    width: 350px;
+    flex-shrink: 0;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 25px;
+    background-color: #f5f5f5;
+    border-left: 1px solid #ddd;
+    overflow-y: auto;
+    transition: margin-right 0.3s ease;   /* NEW */
+}
+
+/* MAP LEGEND */
+.legend {
+    background: white;
+    padding: 8px 10px;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    font: 13px/1.6 sans-serif;
+}
+
+.legend i {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    vertical-align: middle;
+    border: 1px solid #999;
+}
+
+/* SIDEBAR TITLE */
+.sidebar h1 {
+    font-size: 26px;
+    color: #243746;
+    margin-top: 0;
+    margin-bottom: 25px;
+}
+
+/* SIDEBAR SECTION TITLES */
+.sidebar h2 {
+    font-size: 19px;
+    color: #b35900;
+    margin-top: 25px;
+    margin-bottom: 10px;
+}
+
+/* SIDEBAR PARAGRAPHS + LIST ITEMS */
+.sidebar p,
+.sidebar li {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #444;
+}
+
+/* NEW: "How to use" numbered list */
+.sidebar ol {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.sidebar li {
+    margin-bottom: 8px;
+}
