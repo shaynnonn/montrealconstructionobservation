@@ -89,3 +89,21 @@ So far my testing phase consist of the check cell and live server, I would often
 What is the map about? The density of contstruction in montreal
 What do the darkest color mean: The dark red means more construction in that area.
 
+## A3 feature: Time Slider?
+
+For A3 I will add a month slider, so that my reader can see which worksites are active in a given month and how many there are.
+It has depth because it filters the worksites by their start and end dates and counts the ones active in the chosen month.
+I will know it works when moving the slider changes the worksites on the map and the count updates to match.
+My edge case is a month with no active worksites.
+
+Test 1. I move the slider to June 2026, during the busy summer season.
+ Expected: only worksites active in June 2026 are shown, and the text reads "X worksites active in June 2026."
+ Result: 
+
+Test 2. I move the slider to a different month, January 2027.
+ Expected: the June worksites disappear and are replaced by those active in January 2027, and the count updates.
+ Result: 
+
+Test 3. I move the slider to a month with no active worksites.
+ Expected: no worksites on the map, and the message "No active worksites in [month]. Try another month." No console error.
+ Result:
