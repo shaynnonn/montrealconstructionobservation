@@ -90,3 +90,15 @@ html, body {
 .sidebar li {
     margin-bottom: 8px;
 }
+
+.month-control {
+    background: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+    font: 14px/1.4 sans-serif;
+    width: 260px;
+}
+.month-control input {
+    width: 100%;
+}

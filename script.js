@@ -12,6 +12,7 @@ L.tileLayer(
     }
 ).addTo(map);
 
+
 // ==================================================
 // SETTINGS AND SHARED VARIABLES
 // ==================================================
@@ -23,6 +24,23 @@ let greyLayer = L.layerGroup();   // greys out the other boroughs (rebuilt on ea
 // Search bar: find an address and zoom to it
 let searchMarker;
 
+// ==================================================
+// A3: MONTH SLIDER (shared settings)
+// ==================================================
+const FIRST_MONTH = "2025-01";   // first month on the slider
+const LAST_MONTH  = "2027-12";   // last month on the slider
+let currentMonth = null;         // e.g. "2026-06", or null = all months
+let allWorksites;                // all worksites, set when the data loads
+let hexGeoLayer;                 // the hexagons, so we can recolour them
+let worksiteGeoLayer, worksiteData;   // the dots, so we can filter them
+
+// Is this worksite active in the chosen month? (null = all months)
+function isActive(p, month) {
+    if (!month) return true;
+    const start = (p.start_date || "").slice(0, 7);   // "2026-03-15" -> "2026-03"
+    const end = (p.end_date || "").slice(0, 7);
+    return start <= month && month <= end;
+}
 
 L.Control.geocoder({
     defaultMarkGeocode: false,
@@ -143,14 +161,16 @@ Promise.all([
         };
 
 // Count worksites and calculate density for each borough
-        boroughData.features.forEach(borough => {
-            const count = worksites.features.filter(w =>
-                turf.booleanPointInPolygon(w, borough)
-            ).length;
-            const areaKm2 = turf.area(borough) / 1000000;
+        allWorksites = worksites;
 
-            borough.properties.count = count;
-            borough.properties.density = count / areaKm2;
+        boroughData.features.forEach(borough => {
+            const p = borough.properties;
+            p.worksiteList = worksites.features.filter(w =>
+                turf.booleanPointInPolygon(w, borough)
+            );
+            p.areaKm2 = turf.area(borough) / 1000000;
+            p.count = p.worksiteList.length;
+            p.density = p.count / p.areaKm2;
         });
 
         // Coloured, clickable boroughs (far view)
@@ -165,7 +185,7 @@ Promise.all([
                 const p = feature.properties;
 
                 // Hover: show the borough's numbers
-                layer.bindTooltip(`
+                layer.bindTooltip(() => `
                     <strong>${p.NOM}</strong><br>
                     ${p.count} worksites<br>
                     ${p.density.toFixed(1)} per km²
@@ -216,23 +236,14 @@ function getBoroughColor(density) {
 
  // Count worksites inside each hexagon
     montrealHexagons.features.forEach(hex => {
-
-        let count = 0;
-
-        worksites.features.forEach(worksite => {
-
-            if (turf.booleanPointInPolygon(worksite, hex)) {
-                count++;
-            }
-
-        });
-        
-// Save the count inside the hexagon
-        hex.properties.project_count = count;
+        hex.properties.worksiteList = worksites.features.filter(w =>
+            turf.booleanPointInPolygon(w, hex)
+        );
+        hex.properties.project_count = hex.properties.worksiteList.length;
     });
 
         // Draw the hexagons with color based on # of worksites
-L.geoJSON(montrealHexagons, {
+hexGeoLayer = L.geoJSON(montrealHexagons, {
     style: function(feature) {
         return {
             color: "#fff",
@@ -244,13 +255,16 @@ L.geoJSON(montrealHexagons, {
     },
     // Popup showing how many worksites are in this hexagon
     onEachFeature: function(feature, layer) {
-        const n = feature.properties.project_count;
-        layer.bindPopup(`<strong>${n} worksite${n === 1 ? "" : "s"}</strong> in this hexagon`);
+        layer.bindPopup(() => {
+            const n = feature.properties.project_count;
+            return `<strong>${n} worksite${n === 1 ? "" : "s"}</strong> in this hexagon`;
+        });
     }
     
 }).addTo(hexagonLayer);
 
         updateLayers();
+        updateMonthText();
     });
 
 function getHexColor(count) {
@@ -275,7 +289,9 @@ const projectLayer = L.layerGroup();
 fetch("data/worksites.geojson")
     .then(response => response.json())
     .then(data => {
-        L.geoJSON(data, {
+        worksiteData = data;
+        worksiteGeoLayer = L.geoJSON(data, {
+            filter: feature => isActive(feature.properties, currentMonth),
             
          // Draw each worksite as a circle instead of a pin
             pointToLayer: (feature, latlng) => {
@@ -291,10 +307,10 @@ fetch("data/worksites.geojson")
             onEachFeature: (feature, layer) => {
                 const p = feature.properties;
                 layer.bindPopup(`
-                    <strong>${p.reason_category}</strong><br>
-                    Organizati: ${p.organizationname || "Not specified"}<br>
-                    Borough: ${p.boroughid}<br>on
-                    From ${p.duration_startdate} to ${p.duration_enddate}
+                    <strong>${p.reason || "Worksite"}</strong><br>
+                    Organization: ${p.organization || "Not specified"}<br>
+                    Borough: ${p.borough}<br>
+                    From ${p.start_date} to ${p.end_date}
                 `);
             }
         }).addTo(projectLayer);
@@ -413,4 +429,90 @@ function updateFocusPanel() {
     `;
     focusPanel.div.style.display = "block";
     document.getElementById("back-button").addEventListener("click", exitFocus);
+}
+
+// ==================================================
+// A3: MONTH SLIDER
+// ==================================================
+// Slider positions: 0 = all months, then FIRST_MONTH ... LAST_MONTH
+function buildMonths() {
+    const list = [null];
+    let [y, m] = FIRST_MONTH.split("-").map(Number);
+    while (true) {
+        const key = `${y}-${String(m).padStart(2, "0")}`;
+        if (key > LAST_MONTH) break;
+        list.push(key);
+        m++;
+        if (m > 12) { m = 1; y++; }
+    }
+    return list;
+}
+const months = buildMonths();
+
+const monthControl = L.control({ position: "bottomleft" });
+monthControl.onAdd = function() {
+    const div = L.DomUtil.create("div", "month-control");
+    div.innerHTML = `
+        <label for="month-slider"><strong>When is construction happening?</strong></label>
+        <input type="range" id="month-slider" min="0" max="${months.length - 1}" value="0" step="1">
+        <div id="month-text">Loading…</div>
+    `;
+    L.DomEvent.disableClickPropagation(div);    // dragging the slider doesn't drag the map
+    L.DomEvent.disableScrollPropagation(div);
+    return div;
+};
+monthControl.addTo(map);
+
+// EVENT: the reader moves the slider
+document.getElementById("month-slider").addEventListener("input", e => {
+    // HANDLER: remember which month they chose
+    currentMonth = months[Number(e.target.value)];
+    // UPDATE: recount, recolour, refilter, rewrite the text
+    applyMonth();
+});
+
+function applyMonth() {
+    if (!allWorksites) return;   // data not loaded yet
+
+    // Recount and recolour the boroughs
+    boroughFillLayer.eachLayer(layer => {
+        const p = layer.feature.properties;
+        p.count = p.worksiteList.filter(w => isActive(w.properties, currentMonth)).length;
+        p.density = p.count / p.areaKm2;
+        boroughFillLayer.resetStyle(layer);
+    });
+
+    // Recount and recolour the hexagons
+    hexGeoLayer.eachLayer(layer => {
+        const p = layer.feature.properties;
+        p.project_count = p.worksiteList.filter(w => isActive(w.properties, currentMonth)).length;
+        layer.setStyle({ fillColor: getHexColor(p.project_count) });
+    });
+
+    // Redraw only this month's worksites as dots
+    if (worksiteGeoLayer) {
+        worksiteGeoLayer.clearLayers();
+        worksiteGeoLayer.addData(worksiteData);
+    }
+
+    updateFocusPanel();   // the borough panel shows counts too
+    updateMonthText();
+}
+
+function updateMonthText() {
+    const text = document.getElementById("month-text");
+    if (!allWorksites) return;
+
+    if (!currentMonth) {
+        text.innerHTML = `All ${allWorksites.features.length} worksites. Move the slider to pick a month.`;
+        return;
+    }
+
+    const [y, m] = currentMonth.split("-").map(Number);
+    const label = new Date(y, m - 1).toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+    const n = allWorksites.features.filter(w => isActive(w.properties, currentMonth)).length;
+
+    text.innerHTML = n === 0
+        ? `No active worksites in ${label}. Try another month.`
+        : `<strong>${n}</strong> worksite${n === 1 ? "" : "s"} active in ${label}`;
 }
