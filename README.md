@@ -98,12 +98,29 @@ My edge case is a month with no active worksites.
 
 Test 1. I move the slider to June 2026, during the busy summer season.
  Expected: only worksites active in June 2026 are shown, and the text reads "X worksites active in June 2026."
- Result: 
+ Result: passed
 
 Test 2. I move the slider to a different month, January 2027.
  Expected: the June worksites disappear and are replaced by those active in January 2027, and the count updates.
- Result: 
+ Result: passed
 
 Test 3. I move the slider to a month with no active worksites.
  Expected: no worksites on the map, and the message "No active worksites in [month]. Try another month." No console error.
- Result:
+ Result: failed, there is always a worksite active.
+
+ ## IMPORTANT NOTE
+ This project is currently using data downloaded in September, so it is not currently live and updated data.
+
+ New problem to solve with time slider option, construction seem alot less? not sure 
+
+## Pre-flight report (Lab 7)
+| Check | Result | What I did |
+| --- | --- | --- |
+| 1. Cold start | pass 
+| 2. Read every label | pass
+| 3. Ask twice | failed | press an hexagon (tell me how many worsite in that hexagon), change the slider, hexagon did not change with or removed itself |
+| 4. The edge | pass
+| 5. The data does not come | fail | does not have a blank or silent page for readers |
+| 6. On a phone (size view and my phone) | fail | button to close info tab fails, have to flip the phone on the other side to fully be able to use all feature of the map |
+| 7. Mouse in my pocket | fail | button to close info, fail; rest is fine |
+| 8. Accessibility audit | fail  | touch target do not have sufficient size or spacing | document does not have a main landmark accessibility is set at 95

@@ -516,3 +516,18 @@ function updateMonthText() {
         ? `No active worksites in ${label}. Try another month.`
         : `<strong>${n}</strong> worksite${n === 1 ? "" : "s"} active in ${label}`;
 }
+
+// ==================================================
+// SIDEBAR TOGGLE
+// ==================================================
+const appContainer = document.querySelector(".app-container");
+const sidebar = document.querySelector(".sidebar");
+const toggleButton = document.getElementById("sidebar-toggle");
+
+toggleButton.addEventListener("click", () => {
+    const closed = appContainer.classList.toggle("sidebar-closed");
+    toggleButton.textContent = closed ? "‹" : "›";
+});
+
+// After the slide, let Leaflet fill the new space
+sidebar.addEventListener("transitionend", () => map.invalidateSize());
