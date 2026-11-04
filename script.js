@@ -19,6 +19,11 @@ L.tileLayer(
 const HEX_ZOOM = 12;         // hexagons from this zoom
 const POINT_ZOOM = 15;       // individual worksites from this zoom
 
+// Dot size grows as you zoom past POINT_ZOOM
+function getPointRadius(zoom) {
+    return Math.max(5, 5 + (zoom - POINT_ZOOM) * 3);   // 5 px at zoom 15, 8 at 16, 11 at 17, 14 at 18...
+}
+
 let focusedBorough = null;   // the borough in focus, or null
 let greyLayer = L.layerGroup();   // greys out the other boroughs (rebuilt on each focus)              // greys out the other boroughs
 // Search bar: find an address and zoom to it
@@ -296,7 +301,7 @@ fetch("data/worksites.geojson")
          // Draw each worksite as a circle instead of a pin
             pointToLayer: (feature, latlng) => {
                 return L.circleMarker(latlng, {
-                    radius: 5,
+                    radius: getPointRadius(map.getZoom()),   // was: radius: 5
                     color: "#b35900",
                     fillColor: "#ff8c00",
                     fillOpacity: 0.8,
@@ -341,14 +346,15 @@ function updateLayers() {
         updateLegend("hexagon");
 
     } else {
-        // Close: faded hexagons + worksites
-        hexagonLayer.setStyle({ fillOpacity: 0.15, color: "#555", weight: 2 });
-        map.addLayer(hexagonLayer);
-        map.addLayer(projectLayer);
-        if (focusedBorough) map.addLayer(greyLayer);
-        map.addLayer(boroughOutlineLayer);
-        updateLegend("points");
-    }
+    // Close: faded hexagons + worksites
+    hexagonLayer.setStyle({ fillOpacity: 0.15, color: "#555", weight: 2 });
+    if (worksiteGeoLayer) worksiteGeoLayer.eachLayer(l => l.setRadius(getPointRadius(zoom)));   // NEW
+    map.addLayer(hexagonLayer);
+    map.addLayer(projectLayer);
+    if (focusedBorough) map.addLayer(greyLayer);
+    map.addLayer(boroughOutlineLayer);
+    updateLegend("points");
+}
 }
 
 //  function updateLayers() {
@@ -487,6 +493,7 @@ function applyMonth() {
         const p = layer.feature.properties;
         p.project_count = p.worksiteList.filter(w => isActive(w.properties, currentMonth)).length;
         layer.setStyle({ fillColor: getHexColor(p.project_count) });
+        if (layer.isPopupOpen()) layer.getPopup().update();   // NEW: refresh an open popup
     });
 
     // Redraw only this month's worksites as dots
