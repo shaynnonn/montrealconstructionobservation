@@ -118,7 +118,7 @@ Test 3. I move the slider to a month with no active worksites.
 | --- | --- | --- |
 | 1. Cold start | pass 
 | 2. Read every label | pass
-| 3. Ask twice | failed | press an hexagon (tell me how many worsite in that hexagon), change the slider, hexagon did not change with or removed itself |
+| 3. Ask twice | failed | press an hexagon (tell me how many worsite in that hexagon), change the slider, hexagon did not change with or removed itself | fixed 11/04 3:56pm
 | 4. The edge | pass
 | 5. The data does not come | fail | does not have a blank or silent page for readers |
 | 6. On a phone (size view and my phone) | fail | button to close info tab fails, have to flip the phone on the other side to fully be able to use all feature of the map | issue is fixed 11/04 3:40pm
