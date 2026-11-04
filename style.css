@@ -130,3 +130,20 @@ html, body {
 .app-container.sidebar-closed #sidebar-toggle {
     right: 0;
 }
+
+/* DATA ERROR MESSAGE */
+.data-error {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    max-width: 300px;
+    padding: 16px 20px;
+    background: white;
+    border-left: 5px solid #BD0026;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    font: 14px/1.5 sans-serif;
+    color: #333;
+}

@@ -44,7 +44,34 @@ function isActive(p, month) {
     if (!month) return true;
     const start = (p.start_date || "").slice(0, 7);   // "2026-03-15" -> "2026-03"
     const end = (p.end_date || "").slice(0, 7);
-    return start <= month && month <= end;
+        return start <= month && month <= end;
+}
+
+// Load a JSON file, and treat a missing or broken file as an error
+function loadJSON(url) {
+    return fetch(url).then(r => {
+        if (!r.ok) throw new Error(`${url} could not load (${r.status})`);
+        return r.json();
+    });
+}
+
+// Tell the reader the data failed, instead of showing a blank map
+function showDataError(err) {
+    console.error(err);
+
+    if (document.querySelector(".data-error")) return;   // only one message
+
+    const box = L.DomUtil.create("div", "data-error", map.getContainer());
+    box.setAttribute("role", "alert");
+    box.innerHTML = `
+        <strong>The construction data could not load.</strong><br>
+        Check your internet connection and refresh the page.
+        If it still doesn't work, the Ville de Montréal open data
+        may be temporarily unavailable.
+    `;
+
+    const text = document.getElementById("month-text");
+    if (text) text.textContent = "Data unavailable.";
 }
 
 L.Control.geocoder({
@@ -135,9 +162,9 @@ let boroughFillLayer, boroughOutlineLayer;
 
 // Load the Montréal boundary AND construction worksites
 Promise.all([
-    fetch("data/montreal_boundary.geojson").then(r => r.json()),
-    fetch("data/worksites.geojson").then(r => r.json()),
-    fetch("data/montreal_boroughs.geojson").then(r => r.json())
+    loadJSON("data/montreal_boundary.geojson"),
+    loadJSON("data/worksites.geojson"),
+    loadJSON("data/montreal_boroughs.geojson")
 ])
     .then(([boundaryData, worksites, boroughData]) => {
 
@@ -268,9 +295,10 @@ hexGeoLayer = L.geoJSON(montrealHexagons, {
     
 }).addTo(hexagonLayer);
 
-        updateLayers();
+                updateLayers();
         updateMonthText();
-    });
+    })
+    .catch(showDataError);
 
 function getHexColor(count) {
 
@@ -291,8 +319,7 @@ const projectLayer = L.layerGroup();
 
 // Load the worksites and add them as pins with popups
 
-fetch("data/worksites.geojson")
-    .then(response => response.json())
+loadJSON("data/worksites.geojson")
     .then(data => {
         worksiteData = data;
         worksiteGeoLayer = L.geoJSON(data, {
@@ -318,9 +345,9 @@ fetch("data/worksites.geojson")
                     From ${p.start_date} to ${p.end_date}
                 `);
             }
-        }).addTo(projectLayer);
-    
-    });
+                }).addTo(projectLayer);
+    })
+    .catch(showDataError);
 
     // Zoom Fuctionality Features
 function updateLayers() {
