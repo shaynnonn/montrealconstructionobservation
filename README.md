@@ -124,3 +124,13 @@ Test 3. I move the slider to a month with no active worksites.
 | 6. On a phone (size view and my phone) | pass | button to close info tab fails, have to flip the phone on the other side to fully be able to use all feature of the map - issue is fixed 11/04 3:40pm
 | 7. Mouse in my pocket | pass | button to close info, fail; rest is fine - issue is fixed 11/04 3:40pm
 | 8. Accessibility audit | pass  | touch target do not have sufficient size or spacing | document does not have a main landmark accessibility is set at 95
+
+## A3 After Testing Day - New Updates
+
+Evidence: [Tester said the basemap could be change to focus more on the data given]
+Severity: [1, Aesthetic Aspect]
+My Change: [Change the basemap to a darker one]
+
+Evidence: [Tester said back to montreal button and its info wasn't very visible]
+Severity: [2, doesnt affect to much user usage but affect the quality]
+My Change: [Change the whole feature, made it bigger and easier to use]

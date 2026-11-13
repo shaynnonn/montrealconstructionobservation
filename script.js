@@ -6,12 +6,13 @@ const map = L.map("map", { preferCanvas: true }).setView(
 
 // Add a basemap
 L.tileLayer(
-    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', 
     {
+       minZoom: 0,
+       maxZoom: 20,
         attribution: "© OpenStreetMap contributors"
     }
 ).addTo(map);
-
 
 // ==================================================
 // SETTINGS AND SHARED VARIABLES
@@ -285,11 +286,21 @@ hexGeoLayer = L.geoJSON(montrealHexagons, {
             fillOpacity: 0.7
         };
     },
-    // Popup showing how many worksites are in this hexagon
     onEachFeature: function(feature, layer) {
         layer.bindPopup(() => {
             const n = feature.properties.project_count;
             return `<strong>${n} worksite${n === 1 ? "" : "s"}</strong> in this hexagon`;
+        });
+
+        // If a borough is in focus and you click a hexagon in ANOTHER borough,
+        // switch the focus to that borough instead of showing the popup
+        layer.on("click", e => {
+            if (!focusedBorough) return;
+            const clicked = boroughAt(e.latlng);
+            if (clicked && clicked !== focusedBorough) {
+                map.closePopup();
+                focusOn(clicked);
+            }
         });
     }
     
@@ -431,13 +442,23 @@ focusPanel.onAdd = function() {
 
 focusPanel.addTo(map);
 
+// Find which borough contains a clicked point (or null if none)
+function boroughAt(latlng) {
+    const pt = turf.point([latlng.lng, latlng.lat]);
+    let found = null;
+    boroughFillLayer.eachLayer(l => {
+        if (turf.booleanPointInPolygon(pt, l.feature)) found = l.feature;
+    });
+    return found;
+}
+
 function focusOn(feature) {
     focusedBorough = feature;
 
     // Grey out every borough except this one
     greyLayer.setStyle(f => ({ fillOpacity: f === focusedBorough ? 0 : 0.6 }));
 
-    map.fitBounds(L.geoJSON(feature).getBounds());
+    map.flyToBounds(L.geoJSON(feature).getBounds(), { padding: [20, 20], duration: 0.8 });
     updateFocusPanel();
     updateLayers();
 }
@@ -446,7 +467,7 @@ function exitFocus() {
     focusedBorough = null;
     greyLayer.setStyle({ fillOpacity: 0 });
     focusPanel.div.style.display = "none";
-    map.setView([45.55, -73.65], 11);
+    map.setView([45.55, -73.65], 11), {duration: 0.8};
     updateLayers();
 }
 
@@ -455,14 +476,27 @@ function updateFocusPanel() {
 
     const p = focusedBorough.properties;
     focusPanel.div.innerHTML = `
-        <strong>${p.NOM}</strong><br>
-        ${p.count} worksites<br>
-        ${p.density.toFixed(1)} per km²<br>
-        <button id="back-button">Back to all of Montréal</button>
+        <div class="focus-name">${p.NOM}</div>
+        <div class="focus-stats">
+            <span><b>${p.count}</b> worksites</span>
+            <span><b>${p.density.toFixed(1)}</b> per km²</span>
+        </div>
+        <button id="back-button">← Back to all of Montréal</button>
+        <div class="focus-hint">Click another borough to switch · Esc to exit</div>
     `;
     focusPanel.div.style.display = "block";
     document.getElementById("back-button").addEventListener("click", exitFocus);
 }
+
+// Press Esc to leave focus mode
+document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && focusedBorough) exitFocus();
+});
+
+// Click outside Montréal (river, off-island) to leave focus mode
+map.on("click", e => {
+    if (focusedBorough && !boroughAt(e.latlng)) exitFocus();
+});
 
 // ==================================================
 // A3: MONTH SLIDER
