@@ -402,6 +402,72 @@ function hexFill(p) {
     return p.linkedCity ? NO_DATA_COLOR : getHexColor(p.project_count);
 }
 
+// ==================================================
+// WORKSITE POPUP: WHAT IT BLOCKS FOR CITIZENS
+// ==================================================
+// Plain-language labels for the impact codes written by scripts/update_data.py
+const ROAD_LABELS = {
+    closed: "Street closed",
+    lane_and_parking: "Traffic lane and parking blocked",
+    lane: "Traffic lane blocked",
+    parking: "Parking lane blocked",
+    none: "Road not affected"
+};
+const SIDEWALK_LABELS = {
+    closed: "Sidewalk closed",
+    narrowed: "Sidewalk partly blocked (a path is kept)",
+    none: "Sidewalk open"
+};
+const BIKE_LABELS = {
+    closed: "Bike path closed",
+    narrowed: "Bike path partly blocked"
+};
+
+// How serious an impact is, for the coloured marker: high, medium or low
+function severity(code) {
+    if (code === "closed") return "high";
+    if (code === "none" || !code) return "low";
+    return "medium";
+}
+
+// One line: coloured marker + text
+function impactLine(code, text) {
+    return `<li class="impact impact-${severity(code)}">${text}</li>`;
+}
+
+// The "What it blocks" part of the popup
+function impactSection(p) {
+    // Older worksites or permits without details from the City
+    if (!p.impact_road && !p.impact_sidewalk) {
+        return `<div class="impacts-none">No details from the City on what it blocks.</div>`;
+    }
+
+    const lines = [];
+    if (p.impact_road) lines.push(impactLine(p.impact_road, ROAD_LABELS[p.impact_road] || p.impact_road));
+    if (p.impact_sidewalk) lines.push(impactLine(p.impact_sidewalk, SIDEWALK_LABELS[p.impact_sidewalk] || p.impact_sidewalk));
+    if (BIKE_LABELS[p.impact_bike]) lines.push(impactLine(p.impact_bike, BIKE_LABELS[p.impact_bike]));
+    if (p.impact_bus) lines.push(impactLine("moved", "Bus stop moved"));
+
+    const streets = (p.impact_streets || []).map(s => `<li>${s}</li>`).join("");
+
+    return `
+        <div class="impacts-title">What it blocks</div>
+        <ul class="impacts">${lines.join("")}</ul>
+        ${streets ? `<div class="impacts-title">Where</div><ul class="streets">${streets}</ul>` : ""}
+    `;
+}
+
+// Full popup for one worksite
+function worksitePopup(p) {
+    return `
+        <strong>${p.reason || "Worksite"}</strong><br>
+        Organization: ${p.organization || "Not specified"}<br>
+        Borough: ${p.borough}<br>
+        From ${p.start_date} to ${p.end_date}
+        ${impactSection(p)}
+    `;
+}
+
 // Code for zoom in precise location of construction
 
 const projectLayer = L.layerGroup();
@@ -427,12 +493,7 @@ loadJSON("data/worksites.geojson")
             // Attach a popup to each circle
             onEachFeature: (feature, layer) => {
                 const p = feature.properties;
-                layer.bindPopup(`
-                    <strong>${p.reason || "Worksite"}</strong><br>
-                    Organization: ${p.organization || "Not specified"}<br>
-                    Borough: ${p.borough}<br>
-                    From ${p.start_date} to ${p.end_date}
-                `);
+                layer.bindPopup(worksitePopup(p));
             }
                 }).addTo(projectLayer);
     })
