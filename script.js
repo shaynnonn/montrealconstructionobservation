@@ -40,17 +40,51 @@ function isLinkedCity(feature) {
 // ==================================================
 const FIRST_MONTH = "2025-01";   // first month on the slider
 const LAST_MONTH  = "2027-12";   // last month on the slider
-let currentMonth = null;         // e.g. "2026-06", or null = all months
+
+// HISTORY: the current month, e.g. "2026-11" (from the visitor's computer clock)
+const today = new Date();
+const NOW_MONTH = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+let currentMonth = NOW_MONTH;    // the map opens on the current month
+
+// HISTORY: limits of the data, explained under the slider
+const TRACKING_START = "2026-09";   // the history starts with the Sept 25, 2026 download
+const KNOWN_GAPS = {
+    "2026-10": "Not tracked between Sept 25 and Nov 18, 2026, so October is undercounted."
+};
+
 let allWorksites;                // all worksites, set when the data loads
 let hexGeoLayer;                 // the hexagons, so we can recolour them
 let worksiteGeoLayer, worksiteData;   // the dots, so we can filter them
 
-// Is this worksite active in the chosen month? (null = all months)
+// HISTORY: is this worksite active in the chosen month?
+// - Current month: only what the City still lists today
+// - Past months: started by then and not ended yet. If the City no longer lists it,
+//   it ended at the latest when we last saw it (even if its planned end is later).
 function isActive(p, month) {
-    if (!month) return true;
     const start = (p.start_date || "").slice(0, 7);   // "2026-03-15" -> "2026-03"
-    const end = (p.end_date || "").slice(0, 7);
-        return start <= month && month <= end;
+    if (!start || start > month) return false;
+
+    if (month === NOW_MONTH) return p.listed !== false;
+
+    let end = (p.end_date || "").slice(0, 7);
+    if (p.listed === false && p.last_seen) {
+        const seen = p.last_seen.slice(0, 7);
+        if (!end || seen < end) end = seen;
+    }
+    return !end || month <= end;
+}
+
+// HISTORY: where a worksite stands today (for the dot style and popup)
+function statusOf(p) {
+    if (p.listed === false) return "ended";
+    if ((p.start_date || "").slice(0, 7) > NOW_MONTH) return "planned";
+    return "active";
+}
+
+// "November 2026" from "2026-11"
+function monthLabel(month) {
+    const [y, m] = month.split("-").map(Number);
+    return new Date(y, m - 1).toLocaleDateString("en-CA", { month: "long", year: "numeric" });
 }
 
 // Load a JSON file, and treat a missing or broken file as an error
@@ -155,7 +189,9 @@ function updateLegend(level) {
 
     // At the closest zoom, also explain the dots
     if (level === "points") {
-        html += `<div><i class="dot"></i>One worksite</div>`;
+        html += `<div><i class="dot dot-active"></i>Active worksite</div>`;
+        html += `<div><i class="dot dot-ended"></i>Permit ended</div>`;
+        html += `<div><i class="dot dot-planned"></i>Planned</div>`;
     }
 
     
@@ -171,7 +207,7 @@ let boroughFillLayer, boroughOutlineLayer;
 // Load the Montréal boundary AND construction worksites
 Promise.all([
     loadJSON("data/montreal_boundary.geojson"),
-    loadJSON("data/worksites.geojson"),
+    loadJSON("data/worksites_history.geojson"),
     loadJSON("data/montreal_boroughs.geojson")
 ])
     .then(([boundaryData, worksites, boroughData]) => {
@@ -382,7 +418,7 @@ hexGeoLayer = L.geoJSON(montrealHexagons, {
 }).addTo(hexagonLayer);
 
                 updateLayers();
-        updateMonthText();
+        applyMonth();     // HISTORY: count and colour everything for the current month
     })
     .catch(showDataError);
 
@@ -459,6 +495,18 @@ function impactSection(p) {
     `;
 }
 
+// HISTORY: one line saying where the worksite stands today
+function statusLine(p) {
+    const status = statusOf(p);
+    if (status === "ended") {
+        return `<div class="status status-ended">Permit ended (last listed ${p.last_seen})</div>`;
+    }
+    if (status === "planned") {
+        return `<div class="status status-planned">Planned: starts ${p.start_date}</div>`;
+    }
+    return `<div class="status status-active">Active</div>`;
+}
+
 // Full popup for one worksite
 function worksitePopup(p) {
     return `
@@ -466,9 +514,17 @@ function worksitePopup(p) {
         Organization: ${p.organization || "Not specified"}<br>
         Borough: ${p.borough}<br>
         From ${p.start_date} to ${p.end_date}
+        ${statusLine(p)}
         ${impactSection(p)}
     `;
 }
+
+// HISTORY: dot style for each status
+const DOT_STYLES = {
+    active:  { color: "#b35900", fillColor: "#ff8c00", fillOpacity: 0.8, weight: 1 },   // solid orange
+    ended:   { color: "#888888", fillColor: "#bbbbbb", fillOpacity: 0.45, weight: 1 },  // faded grey
+    planned: { color: "#ff8c00", fillColor: "#ff8c00", fillOpacity: 0, weight: 2 }      // hollow orange ring
+};
 
 // Code for zoom in precise location of construction
 
@@ -476,7 +532,7 @@ const projectLayer = L.layerGroup();
 
 // Load the worksites and add them as pins with popups
 
-loadJSON("data/worksites.geojson")
+loadJSON("data/worksites_history.geojson")
     .then(data => {
         worksiteData = data;
         worksiteGeoLayer = L.geoJSON(data, {
@@ -485,13 +541,11 @@ loadJSON("data/worksites.geojson")
          // Draw each worksite as a circle instead of a pin
             pointToLayer: (feature, latlng) => {
                 return L.circleMarker(latlng, {
-                    radius: getPointRadius(map.getZoom()),   // was: radius: 5
-                    color: "#b35900",
-                    fillColor: "#ff8c00",
-                    fillOpacity: 0.8,
-                    weight: 1
+                    radius: getPointRadius(map.getZoom()),
+                    ...DOT_STYLES[statusOf(feature.properties)]   // HISTORY: active / ended / planned
                 });
             },
+
             // Attach a popup to each circle
             onEachFeature: (feature, layer) => {
                 const p = feature.properties;
@@ -575,6 +629,9 @@ function updateLayers() {
 
 map.on("zoomend", updateLayers);
 
+// Hide the focus outline during zoom animations (the canvas stretches lines while animating)
+map.on("zoomstart", () => { if (focusOutline) map.removeLayer(focusOutline); });
+
 // ==================================================
 // 9. FOCUS MODE: CLICK A BOROUGH TO ZOOM IN ON IT
 // ==================================================
@@ -611,7 +668,7 @@ function focusOn(feature) {
     if (focusOutline) map.removeLayer(focusOutline);
     focusOutline = L.layerGroup([
         L.geoJSON(feature, {   // dark halo underneath, so the white line shows on light hexagons too
-            style: { color: "#000", weight: 8, opacity: 0.45, fill: false },
+            style: { color: "#000", weight: 4, opacity: 0.45, fill: false },
             interactive: false
         }),
         L.geoJSON(feature, {   // white line on top
@@ -665,9 +722,9 @@ map.on("click", e => {
 // ==================================================
 // A3: MONTH SLIDER
 // ==================================================
-// Slider positions: 0 = all months, then FIRST_MONTH ... LAST_MONTH
+// Slider positions: FIRST_MONTH ... LAST_MONTH (HISTORY: no "all months" position)
 function buildMonths() {
-    const list = [null];
+    const list = [];
     let [y, m] = FIRST_MONTH.split("-").map(Number);
     while (true) {
         const key = `${y}-${String(m).padStart(2, "0")}`;
@@ -679,14 +736,19 @@ function buildMonths() {
     return list;
 }
 const months = buildMonths();
+const nowIndex = Math.max(0, months.indexOf(NOW_MONTH));   // slider position of the current month
 
 const monthControl = L.control({ position: "bottomleft" });
 monthControl.onAdd = function() {
     const div = L.DomUtil.create("div", "month-control");
     div.innerHTML = `
         <label for="month-slider"><strong>When is construction happening?</strong></label>
-        <input type="range" id="month-slider" min="0" max="${months.length - 1}" value="0" step="1">
-        <div id="month-text">Loading…</div>
+        <input type="range" id="month-slider" min="0" max="${months.length - 1}" value="${nowIndex}" step="1">
+        <div class="month-row">
+            <div id="month-text" aria-live="polite">Loading…</div>
+            <button id="now-button" type="button">Now</button>
+        </div>
+        <div id="month-note" class="month-note"></div>
     `;
     L.DomEvent.disableClickPropagation(div);    // dragging the slider doesn't drag the map
     L.DomEvent.disableScrollPropagation(div);
@@ -699,6 +761,13 @@ document.getElementById("month-slider").addEventListener("input", e => {
     // HANDLER: remember which month they chose
     currentMonth = months[Number(e.target.value)];
     // UPDATE: recount, recolour, refilter, rewrite the text
+    applyMonth();
+});
+
+// EVENT: HISTORY: back to the current month
+document.getElementById("now-button").addEventListener("click", () => {
+    document.getElementById("month-slider").value = nowIndex;
+    currentMonth = NOW_MONTH;
     applyMonth();
 });
 
@@ -735,18 +804,27 @@ function updateMonthText() {
     const text = document.getElementById("month-text");
     if (!allWorksites) return;
 
-    if (!currentMonth) {
-        text.innerHTML = `All ${allWorksites.features.length} worksites. Move the slider to pick a month.`;
-        return;
-    }
-
-    const [y, m] = currentMonth.split("-").map(Number);
-    const label = new Date(y, m - 1).toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+    const isNow = currentMonth === NOW_MONTH;
+    const label = monthLabel(currentMonth) + (isNow ? " (now)" : "");
     const n = allWorksites.features.filter(w => isActive(w.properties, currentMonth)).length;
 
     text.innerHTML = n === 0
         ? `No active worksites in ${label}. Try another month.`
-        : `<strong>${n}</strong> worksite${n === 1 ? "" : "s"} active in ${label}`;
+        : `<strong>${n}</strong> worksite${n === 1 ? "" : "s"} ${isNow ? "active" : "in"} ${label}`;
+
+    document.getElementById("now-button").disabled = isNow;
+
+    // HISTORY: explain the limits of the data for some months
+    let note = "";
+    if (currentMonth < TRACKING_START) {
+        note = `History is tracked since ${monthLabel(TRACKING_START)}. Earlier months only show
+                worksites that were still active then, so they look emptier than they were.`;
+    } else if (KNOWN_GAPS[currentMonth]) {
+        note = KNOWN_GAPS[currentMonth];
+    } else if (currentMonth > NOW_MONTH) {
+        note = "Future months only show permits already issued.";
+    }
+    document.getElementById("month-note").innerHTML = note;
 }
 
 // ==================================================

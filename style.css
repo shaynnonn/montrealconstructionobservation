@@ -244,3 +244,61 @@ html, body {
     font-style: italic;
     color: #777;
 }
+
+/* ---- HISTORY: month slider "Now" button and notes (paste at the end of style.css) ---- */
+.month-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+#now-button {
+    flex-shrink: 0;
+    min-width: 44px;              /* big enough to tap on a phone */
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid #b35900;
+    border-radius: 4px;
+    background: #ff8c00;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#now-button:disabled {
+    background: #eee;
+    border-color: #ccc;
+    color: #888;
+    cursor: default;
+}
+
+.month-note {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #666;
+}
+
+.month-note:empty {
+    display: none;
+}
+
+/* ---- HISTORY: status line in the worksite popup ---- */
+.status {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: bold;
+}
+.status-active  { color: #b35900; }
+.status-ended   { color: #777; }
+.status-planned { color: #b35900; font-style: italic; }
+
+/* ---- HISTORY: dot styles in the legend ---- */
+.legend i.dot {
+    border-radius: 50%;
+    width: 12px;
+    height: 12px;
+}
+.legend i.dot-active  { background: #ff8c00; border: 1px solid #b35900; }
+.legend i.dot-ended   { background: rgba(187, 187, 187, 0.45); border: 1px solid #888; }
+.legend i.dot-planned { background: transparent; border: 2px solid #ff8c00; }
