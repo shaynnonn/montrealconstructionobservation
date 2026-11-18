@@ -134,3 +134,48 @@ My Change: [Change the basemap to a darker one]
 Evidence: [Tester said back to montreal button and its info wasn't very visible]
 Severity: [2, doesnt affect to much user usage but affect the quality]
 My Change: [Change the whole feature, made it bigger and easier to use]
+
+## Update 11/17/26 - Auutomatic Data Update
+
+## Automatic data update
+
+The map's data now updates itself. Twice a week (Monday and Thursday, 9:23 UTC), a GitHub Action downloads the latest
+[Entraves et travaux en cours](https://donnees.montreal.ca/dataset/info-travaux) CSV from the City of Montréal,
+cleans it, and commits the new data to this repo. The live site then shows the new data.
+
+### How it works
+
+| File | What it does |
+|---|---|
+| `.github/workflows/update-data.yml` | The schedule: tells GitHub when to run the update |
+| `scripts/update_data.py` | The pipeline: downloads, cleans, merges and checks the data |
+
+The script cleans the data with the same steps as `notebooks/test.ipynb` (same columns, same renaming, same removals),
+then compares the new file with what it already knows, using `permit_id`:
+
+- **New permit**: added, with `first_seen` set to today
+- **Still in the City's file**: updated, with `last_seen` set to today
+- **No longer in the City's file**: kept, with `listed: false` (the work is finished or the permit was removed)
+
+The City's file only lists worksites that are active now, so without this step finished worksites would disappear.
+The history started from the September 25, 2026 download, so worksites that ended before that date are not included.
+
+### Data files it writes (`data/`)
+
+- `worksites.geojson`: worksites active now (used by the map)
+- `worksites_history.geojson`: every worksite seen since September 25, 2026, including finished ones
+- `last_updated.json`: date of the last update and worksite counts
+
+### Safety checks
+
+The update stops without changing anything if:
+- the download has fewer than half the worksites of the last run (probably a broken file)
+- the City renamed or removed a column the map needs
+- a worksite is outside Montréal or is missing a property the popup uses
+
+If that happens, the run shows red in the Actions tab and GitHub sends me an email.
+
+### Run it by hand
+
+- On GitHub: **Actions → Update worksite data → Run workflow**
+- On my computer: `python scripts/update_data.py` (needs `pandas`)

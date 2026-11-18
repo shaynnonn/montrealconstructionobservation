@@ -176,19 +176,60 @@ Promise.all([
             { units: "kilometers" }
         );
 
-        // Keep only hexagons that intersect Montréal
-        const montrealHexagons = {
-            type: "FeatureCollection",
-            features: hexGrid.features.filter(hex => {
+         // Fit the hexagons to the island:
+        // - hexagons fully on land are kept whole
+        // - hexagons crossing the shoreline are clipped to the borough shapes
+        // - hexagons fully in the water are dropped
+        const boroughBoxes = boroughData.features.map(b => turf.bbox(b));
 
-    const center = turf.centroid(hex);
+        function boxesOverlap(a, b) {
+            return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+        }
 
-    return boundaryData.features.some(boundary =>
-        turf.booleanPointInPolygon(center, boundary)
-    );
+        function onLand(point, candidates) {
+            return candidates.some(b => turf.booleanPointInPolygon(point, b));
+        }
 
-})
-        };
+        const fittedHexagons = [];
+
+        hexGrid.features.forEach(hex => {
+            const hexBox = turf.bbox(hex);
+
+            // Only test boroughs that are near this hexagon (much faster)
+            const nearby = boroughData.features.filter((b, i) =>
+                boxesOverlap(hexBox, boroughBoxes[i])
+            );
+            if (nearby.length === 0) return;   // nowhere near Montréal
+
+            // Are all 6 corners and the center on land?
+            const corners = hex.geometry.coordinates[0].slice(0, 6);
+            const points = [...corners, turf.centroid(hex).geometry.coordinates];
+            const landCount = points.filter(p => onLand(turf.point(p), nearby)).length;
+
+            if (landCount === points.length) {
+                fittedHexagons.push(hex);         // fully on land: keep whole
+                return;
+            }
+
+            // Crosses the shoreline: clip it to the boroughs it touches
+            try {
+                let clipped = null;
+                nearby.forEach(borough => {
+                    const piece = turf.intersect(hex, borough);
+                    if (!piece) return;
+                    clipped = clipped ? turf.union(clipped, piece) : piece;
+                });
+                if (clipped) {
+                    clipped.properties = { ...hex.properties };
+                    fittedHexagons.push(clipped);
+                }
+            } catch (err) {
+                // If clipping fails for one hexagon, keep it whole instead of breaking the map
+                if (landCount > 0) fittedHexagons.push(hex);
+            }
+        });
+
+        const montrealHexagons = turf.featureCollection(fittedHexagons);
 
 // Count worksites and calculate density for each borough
         allWorksites = worksites;
