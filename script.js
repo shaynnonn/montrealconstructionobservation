@@ -191,7 +191,7 @@ function updateLegend(level) {
     if (level === "points") {
         html += `<div><i class="dot dot-active"></i>Active worksite</div>`;
         html += `<div><i class="dot dot-ended"></i>Permit ended</div>`;
-        html += `<div><i class="dot dot-planned"></i>Planned</div>`;
+
     }
 
     
