@@ -27,6 +27,12 @@ let greyLayer = L.layerGroup();   // greys out the other boroughs (rebuilt on ea
 // Search bar: find an address and zoom to it
 let searchMarker;
 
+// Linked cities (Westmount, Pointe-Claire, ...) are separate municipalities:
+// the City of Montréal's worksite data doesn't cover them
+const NO_DATA_COLOR = "#4a4a4a";
+function isLinkedCity(feature) {
+    return feature.properties.TYPE !== "Arrondissement";
+}
 // ==================================================
 // A3: MONTH SLIDER (shared settings)
 // ==================================================
@@ -121,7 +127,8 @@ function updateLegend(level) {
             ["#FC4E2A", "8 to 10"],
             ["#FD8D3C", "5 to 7"],
             ["#FED976", "Under 5"],
-            ["#D9D9D9", "None"]
+            ["#D9D9D9", "None"],
+            [NO_DATA_COLOR, "Separate municipality (no data)"]
         ];
     } else {
         title = "Worksites per hexagon";
@@ -131,7 +138,8 @@ function updateLegend(level) {
             ["#FC4E2A", "6 to 10"],
             ["#FD8D3C", "3 to 5"],
             ["#FED976", "1 to 2"],
-            ["#D9D9D9", "None"]
+            ["#D9D9D9", "None"],
+            [NO_DATA_COLOR, "Separate municipality (no data)"]
         ];
     }
 
@@ -231,7 +239,15 @@ Promise.all([
 
         const montrealHexagons = turf.featureCollection(fittedHexagons);
 
-// Count worksites and calculate density for each borough
+        // Mark the hexagons whose center is in a linked city (no open data there)
+        const linkedCities = boroughData.features.filter(isLinkedCity);
+        montrealHexagons.features.forEach(hex => {
+            const center = turf.centroid(hex);
+            const city = linkedCities.find(c => turf.booleanPointInPolygon(center, c));
+            hex.properties.linkedCity = city ? city.properties.NOM : null;
+        });
+
+        // Count worksites and calculate density for each borough
         allWorksites = worksites;
 
         boroughData.features.forEach(borough => {
@@ -245,15 +261,34 @@ Promise.all([
         });
 
         // Coloured, clickable boroughs (far view)
+        // Linked cities (separate municipalities) have no open construction data,
+        // so they're drawn dark grey and can't be clicked
         boroughFillLayer = L.geoJSON(boroughData, {
-            style: feature => ({
-                color: "#ffffff",
-                weight: 1,
-                fillColor: getBoroughColor(feature.properties.density),
-                fillOpacity: 0.7
-            }),
+            style: feature => isLinkedCity(feature)
+                ? {
+                    color: "#ffffff",
+                    weight: 1,
+                    fillColor: NO_DATA_COLOR,
+                    fillOpacity: 0.85
+                }
+                : {
+                    color: "#ffffff",
+                    weight: 1,
+                    fillColor: getBoroughColor(feature.properties.density),
+                    fillOpacity: 0.7
+                },
             onEachFeature: (feature, layer) => {
                 const p = feature.properties;
+
+                // Linked city: hover notice only
+                if (isLinkedCity(feature)) {
+                    layer.bindTooltip(`
+                        <strong>${p.NOM}</strong><br>
+                        Separate municipality<br>
+                        <em>No open construction data</em>
+                    `, { sticky: true });
+                    return;
+                }
 
                 // Hover: show the borough's numbers
                 layer.bindTooltip(() => `
@@ -262,7 +297,7 @@ Promise.all([
                     ${p.density.toFixed(1)} per km²
                 `, { sticky: true });
 
-                               // Highlight the borough under the mouse
+                // Highlight the borough under the mouse
                 layer.on("mouseover", () => {
                     layer.setStyle({ fillOpacity: 0.95, weight: 3, color: "#ffffff" });
                     layer.bringToFront();   // so its border isn't hidden by neighbours
@@ -271,15 +306,6 @@ Promise.all([
                 // Click: focus on this borough
                 layer.on("click", () => focusOn(feature));
             }
-            // onEachFeature: (feature, layer) => {
-            //     const p = feature.properties;
-            //     layer.bindPopup(`
-            //         <strong>${p.NOM}</strong><br>
-            //         ${p.count} worksites total<br>
-            //         ${p.density.toFixed(1)} worksites per km²<br>
-            //         <em>Zoom in to see where</em>
-            //     `);
-            // }
         });
 
         // Thin outlines that don't block clicks (closer views)
@@ -319,16 +345,25 @@ hexGeoLayer = L.geoJSON(montrealHexagons, {
         return {
             color: "#fff",
             weight: 0.5,
-            // Color depends on # of worksites in the hexagon
-            fillColor: getHexColor(feature.properties.project_count),
+            // Color depends on # of worksites in the hexagon (dark grey = no data)
+            fillColor: hexFill(feature.properties),
             fillOpacity: 0.7
         };
     },
     onEachFeature: function(feature, layer) {
-        layer.bindPopup(() => {
-            const n = feature.properties.project_count;
-            return `<strong>${n} worksite${n === 1 ? "" : "s"}</strong> in this hexagon`;
-        });
+        // Hexagon in a linked city: hover notice instead of a count
+        if (feature.properties.linkedCity) {
+            layer.bindTooltip(`
+                <strong>${feature.properties.linkedCity}</strong><br>
+                Separate municipality<br>
+                <em>No open construction data</em>
+            `, { sticky: true });
+        } else {
+            layer.bindPopup(() => {
+                const n = feature.properties.project_count;
+                return `<strong>${n} worksite${n === 1 ? "" : "s"}</strong> in this hexagon`;
+            });
+        }
 
         // If a borough is in focus and you click a hexagon in ANOTHER borough,
         // switch the focus to that borough instead of showing the popup
@@ -360,6 +395,11 @@ function getHexColor(count) {
 
     return "#FFF7BC";
 
+}
+
+// Fill colour for one hexagon: dark grey in linked cities, otherwise by count
+function hexFill(p) {
+    return p.linkedCity ? NO_DATA_COLOR : getHexColor(p.project_count);
 }
 
 // Code for zoom in precise location of construction
@@ -491,6 +531,7 @@ function boroughAt(latlng) {
 }
 
 function focusOn(feature) {
+    if (isLinkedCity(feature)) return;   // no data to focus on
     focusedBorough = feature;
 
     // Grey out every borough except this one
@@ -591,7 +632,7 @@ function applyMonth() {
     hexGeoLayer.eachLayer(layer => {
         const p = layer.feature.properties;
         p.project_count = p.worksiteList.filter(w => isActive(w.properties, currentMonth)).length;
-        layer.setStyle({ fillColor: getHexColor(p.project_count) });
+        layer.setStyle({ fillColor: hexFill(p) });
         if (layer.isPopupOpen()) layer.getPopup().update();   // NEW: refresh an open popup
     });
 
