@@ -27,6 +27,8 @@ let greyLayer = L.layerGroup();   // greys out the other boroughs (rebuilt on ea
 // Search bar: find an address and zoom to it
 let searchMarker;
 
+let focusOutline = null;      // white outline around the borough in focus
+
 // Linked cities (Westmount, Pointe-Claire, ...) are separate municipalities:
 // the City of Montréal's worksite data doesn't cover them
 const NO_DATA_COLOR = "#4a4a4a";
@@ -529,9 +531,15 @@ function updateLayers() {
     map.addLayer(hexagonLayer);
     map.addLayer(projectLayer);
     if (focusedBorough) map.addLayer(greyLayer);
-    map.addLayer(boroughOutlineLayer);
+       map.addLayer(boroughOutlineLayer);
     updateLegend("points");
 }
+
+    // Keep the focus outline on top of everything else
+    if (focusOutline) {
+        map.removeLayer(focusOutline);
+        map.addLayer(focusOutline);
+    }
 }
 
 //  function updateLayers() {
@@ -598,6 +606,20 @@ function focusOn(feature) {
     // Grey out every borough except this one
     greyLayer.setStyle(f => ({ fillOpacity: f === focusedBorough ? 0 : 0.6 }));
 
+
+    // White outline with a dark halo around the borough in focus
+    if (focusOutline) map.removeLayer(focusOutline);
+    focusOutline = L.layerGroup([
+        L.geoJSON(feature, {   // dark halo underneath, so the white line shows on light hexagons too
+            style: { color: "#000", weight: 8, opacity: 0.45, fill: false },
+            interactive: false
+        }),
+        L.geoJSON(feature, {   // white line on top
+            style: { color: "#fff", weight: 3.5, opacity: 1, fill: false },
+            interactive: false
+        })
+    ]);
+
     map.flyToBounds(L.geoJSON(feature).getBounds(), { padding: [20, 20], duration: 0.8 });
     updateFocusPanel();
     updateLayers();
@@ -606,6 +628,8 @@ function focusOn(feature) {
 function exitFocus() {
     focusedBorough = null;
     greyLayer.setStyle({ fillOpacity: 0 });
+    if (focusOutline) map.removeLayer(focusOutline);
+    focusOutline = null;
     focusPanel.div.style.display = "none";
     map.setView([45.55, -73.65], 11), {duration: 0.8};
     updateLayers();
