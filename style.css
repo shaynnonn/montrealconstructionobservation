@@ -302,3 +302,40 @@ html, body {
 .legend i.dot-active  { background: #ff8c00; border: 1px solid #b35900; }
 .legend i.dot-ended   { background: rgba(187, 187, 187, 0.45); border: 1px solid #888; }
 .legend i.dot-planned { background: transparent; border: 2px solid #ff8c00; }
+
+/* ---- EXTENSIONS: renewed / extended worksites (paste at the end of style.css) ---- */
+.extension {
+    margin-top: 6px;
+    padding: 6px 8px;
+    border-left: 3px solid #800026;
+    background: #fbeef0;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.extension-short {
+    border-left-color: #FD8D3C;
+    background: #fff4ea;
+}
+
+/* Legend: orange dot with a dark red ring */
+.legend i.dot-extended {
+    background: #ff8c00;
+    border: 3px solid #800026;
+    width: 10px;
+    height: 10px;
+}
+
+/* Borough focus panel line */
+.focus-extended {
+    margin: 4px 0 8px;
+    font-size: 13px;
+}
+.focus-extended b {
+    color: #ff6b6b;
+}
+
+.extension-note {
+    color: #777;
+    font-style: italic;
+}

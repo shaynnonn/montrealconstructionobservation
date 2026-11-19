@@ -179,3 +179,9 @@ If that happens, the run shows red in the Actions tab and GitHub sends me an ema
 
 - On GitHub: **Actions → Update worksite data → Run workflow**
 - On my computer: `python scripts/update_data.py` (needs `pandas`)
+
+## Update 11/18/26
+
+## Small Changes Added
+
+## Big Changes Added

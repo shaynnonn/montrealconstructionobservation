@@ -81,6 +81,23 @@ function statusOf(p) {
     return "active";
 }
 
+// EXTENSIONS: count worksites active in a month, counting a renewed worksite once
+// (a permit and its renewal can overlap by a few days)
+function countActive(list, month) {
+    const seen = new Set();
+    list.forEach(w => {
+        const p = w.properties;
+        if (isActive(p, month)) seen.add(p.chain_id || p.permit_id);
+    });
+    return seen.size;
+}
+
+// EXTENSIONS: "Oct 16, 2026" from "2026-10-16"
+function shortDate(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
+}
+
 // "November 2026" from "2026-11"
 function monthLabel(month) {
     const [y, m] = month.split("-").map(Number);
@@ -191,7 +208,7 @@ function updateLegend(level) {
     if (level === "points") {
         html += `<div><i class="dot dot-active"></i>Active worksite</div>`;
         html += `<div><i class="dot dot-ended"></i>Permit ended</div>`;
-
+             html += `<div><i class="dot dot-extended"></i>Permit renewed</div>`;
     }
 
     
@@ -507,6 +524,57 @@ function statusLine(p) {
     return `<div class="status status-active">Active</div>`;
 }
 
+// EXTENSIONS: what happened with the permits at this spot, if this permit is part of a chain.
+// A permit gives the right to OCCUPY the street until its end date. A renewal means the
+// occupation continued under a new permit: it can be a planned next phase or a delay.
+function extensionLine(p) {
+    if (!p.chain_id || !(p.chain_size > 1)) return "";
+    const likely = p.chain_confidence === "medium";
+    const renewals = p.chain_size - 1;
+    const times = `${renewals} time${renewals === 1 ? "" : "s"}`;
+
+    // Repeated short permits (the first one was under 7 days)
+    if (p.chain_type === "repeated_short") {
+        return `<div class="extension extension-short">
+            ${likely ? "Likely repeated" : "Repeated"} short permits here since ${shortDate(p.chain_start)}
+            (${p.chain_size} permits)</div>`;
+    }
+
+    // An earlier permit in the chain: it was followed by a new one
+    if (p.chain_position < p.chain_size) {
+        return `<div class="extension">${likely ? "Likely renewed" : "Renewed"}: the street occupation
+            continued under a new permit</div>`;
+    }
+
+    // The latest permit: first end, current (or last) end, and how long the street has been occupied
+    const DAY = 1000 * 60 * 60 * 24;
+    const start = new Date(p.chain_start);
+    const ended = p.listed === false;
+
+    // Finished: it ended at its planned end, or earlier if the City stopped listing it
+    let endDate = p.end_date;
+    if (ended && p.last_seen && p.last_seen < endDate) endDate = p.last_seen;
+    const until = ended ? new Date(endDate) : new Date();
+
+    return `<div class="extension">
+        <strong>Street occupation ${likely ? "likely continued" : "continued"} under a new permit</strong><br>
+        First permit ended: ${shortDate(p.original_end)}<br>
+        ${ended ? "Last permit ended" : "Now occupied until"}: ${shortDate(endDate)} (renewed ${times})<br>
+        ${ended
+            ? `Occupied from ${shortDate(p.chain_start)} to ${shortDate(endDate)}`
+            : `Occupied since ${shortDate(p.chain_start)}`}
+        (${duration((until - start) / DAY)})<br>
+        <span class="extension-note">A renewal can be a planned next phase or a delay.</span>
+    </div>`;
+}
+
+// EXTENSIONS: "3 days", "2 weeks" or "4 months"
+function duration(days) {
+    if (days < 14) return `${Math.max(1, Math.round(days))} day${Math.round(days) <= 1 ? "" : "s"}`;
+    if (days < 60) return `${Math.round(days / 7)} weeks`;
+    return `${Math.round(days / 30.44)} months`;
+}
+
 // Full popup for one worksite
 function worksitePopup(p) {
     return `
@@ -515,6 +583,7 @@ function worksitePopup(p) {
         Borough: ${p.borough}<br>
         From ${p.start_date} to ${p.end_date}
         ${statusLine(p)}
+        ${extensionLine(p)}
         ${impactSection(p)}
     `;
 }
@@ -525,6 +594,15 @@ const DOT_STYLES = {
     ended:   { color: "#888888", fillColor: "#bbbbbb", fillOpacity: 0.45, weight: 1 },  // faded grey
     planned: { color: "#ff8c00", fillColor: "#ff8c00", fillOpacity: 0, weight: 2 }      // hollow orange ring
 };
+
+// EXTENSIONS: dark red ring around worksites whose permit was renewed
+const EXTENDED_RING = { color: "#800026", weight: 3 };
+
+function dotStyle(p) {
+    const style = { ...DOT_STYLES[statusOf(p)] };
+    if (p.chain_type === "extended") Object.assign(style, EXTENDED_RING);
+    return style;
+}
 
 // Code for zoom in precise location of construction
 
@@ -542,7 +620,7 @@ loadJSON("data/worksites_history.geojson")
             pointToLayer: (feature, latlng) => {
                 return L.circleMarker(latlng, {
                     radius: getPointRadius(map.getZoom()),
-                    ...DOT_STYLES[statusOf(feature.properties)]   // HISTORY: active / ended / planned
+                    ...dotStyle(feature.properties)   // HISTORY: active / ended / planned + EXTENSIONS ring
                 });
             },
 
@@ -692,6 +770,17 @@ function exitFocus() {
     updateLayers();
 }
 
+// EXTENSIONS: how many worksites in this borough are extended, for the selected month
+function extendedInBorough(p) {
+    const chains = new Set();
+    p.worksiteList.forEach(w => {
+        const q = w.properties;
+        if (q.chain_type === "extended" && isActive(q, currentMonth)) chains.add(q.chain_id);
+    });
+    if (chains.size === 0) return "";
+    return `<div class="focus-extended"><b>${chains.size}</b> with a renewed permit</div>`;
+}
+
 function updateFocusPanel() {
     if (!focusedBorough) return;
 
@@ -702,6 +791,7 @@ function updateFocusPanel() {
             <span><b>${p.count}</b> worksites</span>
             <span><b>${p.density.toFixed(1)}</b> per km²</span>
         </div>
+        ${extendedInBorough(p)}
         <button id="back-button">← Back to all of Montréal</button>
         <div class="focus-hint">Click another borough to switch · Esc to exit</div>
     `;
@@ -777,7 +867,7 @@ function applyMonth() {
     // Recount and recolour the boroughs
     boroughFillLayer.eachLayer(layer => {
         const p = layer.feature.properties;
-        p.count = p.worksiteList.filter(w => isActive(w.properties, currentMonth)).length;
+        p.count = countActive(p.worksiteList, currentMonth);   // EXTENSIONS: renewals counted once
         p.density = p.count / p.areaKm2;
         boroughFillLayer.resetStyle(layer);
     });
@@ -785,7 +875,7 @@ function applyMonth() {
     // Recount and recolour the hexagons
     hexGeoLayer.eachLayer(layer => {
         const p = layer.feature.properties;
-        p.project_count = p.worksiteList.filter(w => isActive(w.properties, currentMonth)).length;
+         p.project_count = countActive(p.worksiteList, currentMonth);
         layer.setStyle({ fillColor: hexFill(p) });
         if (layer.isPopupOpen()) layer.getPopup().update();   // NEW: refresh an open popup
     });
@@ -806,7 +896,7 @@ function updateMonthText() {
 
     const isNow = currentMonth === NOW_MONTH;
     const label = monthLabel(currentMonth) + (isNow ? " (now)" : "");
-    const n = allWorksites.features.filter(w => isActive(w.properties, currentMonth)).length;
+    const n = countActive(allWorksites.features, currentMonth);
 
     text.innerHTML = n === 0
         ? `No active worksites in ${label}. Try another month.`
