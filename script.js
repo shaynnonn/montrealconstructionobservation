@@ -615,8 +615,8 @@ loadJSON("data/worksites_history.geojson")
         worksiteData = data;
         worksiteGeoLayer = L.geoJSON(data, {
             filter: feature => isActive(feature.properties, currentMonth),
-            
-         // Draw each worksite as a circle instead of a pin
+
+            // Draw each worksite as a circle instead of a pin
             pointToLayer: (feature, latlng) => {
                 return L.circleMarker(latlng, {
                     radius: getPointRadius(map.getZoom()),
@@ -624,12 +624,19 @@ loadJSON("data/worksites_history.geojson")
                 });
             },
 
-            // Attach a popup to each circle
+            // Attach a popup to each circle, with the "rate the impact" panel underneath
             onEachFeature: (feature, layer) => {
                 const p = feature.properties;
-                layer.bindPopup(worksitePopup(p));
+                layer.bindPopup(() => {
+                    const div = document.createElement("div");
+                    div.innerHTML = worksitePopup(p);
+                    if (window.createRatingPanel) {
+                        div.appendChild(window.createRatingPanel(p.permit_id));
+                    }
+                    return div;
+                });
             }
-                }).addTo(projectLayer);
+        }).addTo(projectLayer);
     })
     .catch(showDataError);
 
